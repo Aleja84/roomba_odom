@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+<!-- Copia de clase_ws/roomba.ros2_control.xacro (la del robot real), sin cambios
+     en la interfaz: velocidad como mando, posición y velocidad como estado.
+     Con use_gazebo:=true el hardware es Gazebo; si no, RoombaHardware (puerto serie). -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="control">
+
+    <xacro:macro name="roomba_ros2_control" params="use_gazebo:=false use_mock:=false serial_port:=/dev/arduino_motors baud_rate:=115200 ticks_per_rev:=4480.0 left_wheel_scale:=1.0 right_wheel_scale:=1.0 left_mirror_mode:=true left_pwm_trim:=1.03 max_wheel_velocity:=3.0">
+
+        <ros2_control name="roomba_ros2_control" type="system">
+
+            <xacro:if value="${use_gazebo}">
+                <hardware>
+                    <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+                </hardware>
+            </xacro:if>
+
+            <xacro:unless value="${use_gazebo}">
+                <xacro:if value="${use_mock}">
+                    <hardware>
+                        <plugin>mock_components/GenericSystem</plugin>
+                        <param name="calculate_dynamics">true</param>
+                    </hardware>
+                </xacro:if>
+                <xacro:unless value="${use_mock}">
+                    <hardware>
+                        <plugin>roomba_hardware/RoombaHardware</plugin>
+                        <param name="serial_port">${serial_port}</param>
+                        <param name="baud_rate">${baud_rate}</param>
+                        <param name="ticks_per_rev">${ticks_per_rev}</param>
+                        <param name="left_wheel_scale">${left_wheel_scale}</param>
+                        <param name="right_wheel_scale">${right_wheel_scale}</param>
+                        <param name="left_mirror_mode">${left_mirror_mode}</param>
+                        <param name="left_pwm_trim">${left_pwm_trim}</param>
+                        <param name="max_wheel_velocity">${max_wheel_velocity}</param>
+                    </hardware>
+                </xacro:unless>
+            </xacro:unless>
+
+            <joint name="left_wheel_joint">
+                <command_interface name="velocity" />
+                <state_interface name="position" />
+                <state_interface name="velocity" />
+            </joint>
+
+            <joint name="right_wheel_joint">
+                <command_interface name="velocity" />
+                <state_interface name="position" />
+                <state_interface name="velocity" />
+            </joint>
+
+            <xacro:if value="${use_gazebo}">
+                <sensor name="imu_sensor">
+                    <state_interface name="orientation.x" />
+                    <state_interface name="orientation.y" />
+                    <state_interface name="orientation.z" />
+                    <state_interface name="orientation.w" />
+                    <state_interface name="angular_velocity.x" />
+                    <state_interface name="angular_velocity.y" />
+                    <state_interface name="angular_velocity.z" />
+                    <state_interface name="linear_acceleration.x" />
+                    <state_interface name="linear_acceleration.y" />
+                    <state_interface name="linear_acceleration.z" />
+                </sensor>
+            </xacro:if>
+
+        </ros2_control>
+
+    </xacro:macro>
+
+</robot>

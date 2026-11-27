@@ -1,0 +1,20 @@
+# ros2_control para la Roomba simulada.
+# Sin diff_drive_controller: la cinemática la hace kinematics_node y la
+# odometría odometry_node. Aquí solo hay un controlador «tonto» que pasa
+# velocidades a las ruedas y el broadcaster que publica /joint_states.
+controller_manager:
+  ros__parameters:
+    update_rate: 100          # Hz del lazo de ros2_control (y de /joint_states)
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    wheel_velocity_controller:
+      type: velocity_controllers/JointGroupVelocityController
+
+wheel_velocity_controller:
+  ros__parameters:
+    # El orden de este vector es el orden de Float64MultiArray.data
+    joints:
+      - left_wheel_joint
+      - right_wheel_joint

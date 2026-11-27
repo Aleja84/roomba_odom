@@ -1,0 +1,151 @@
+<?xml version="1.0"?>
+<!-- Modelo sencillo de la Roomba para Gazebo Harmonic.
+
+     base_link (origen en el eje de las ruedas)
+       ├── left_wheel   (continuous, eje +y)   y = +L/2
+       ├── right_wheel  (continuous, eje +y)   y = -L/2
+       ├── caster_front / caster_back (fijas, esferas sin fricción)
+     Las dimensiones r y L llegan como argumentos desde el launch, que también
+     se las pasa a kinematics_node y odometry_node: así hay una sola fuente. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="roomba">
+
+  <xacro:arg name="wheel_radius" default="0.036"/>
+  <xacro:arg name="wheel_separation" default="0.235"/>
+  <xacro:arg name="use_gazebo" default="true"/>
+
+  <xacro:property name="r" value="$(arg wheel_radius)"/>
+  <xacro:property name="L" value="$(arg wheel_separation)"/>
+  <xacro:property name="body_r" value="0.17"/>
+  <xacro:property name="body_h" value="0.07"/>
+  <xacro:property name="body_m" value="3.0"/>
+  <xacro:property name="wheel_w" value="0.02"/>
+  <xacro:property name="wheel_m" value="0.15"/>
+  <xacro:property name="caster_r" value="${r / 2}"/>
+
+  <xacro:include filename="$(find roomba_odom)/urdf/roomba.ros2_control.xacro"/>
+
+  <material name="cuerpo"><color rgba="0.25 0.25 0.28 1.0"/></material>
+  <material name="tapa"><color rgba="0.75 0.75 0.78 1.0"/></material>
+  <material name="rueda"><color rgba="0.05 0.05 0.05 1.0"/></material>
+
+  <!-- ===== cuerpo ===== -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${body_h / 2 - r + 0.01}"/>
+      <geometry><cylinder radius="${body_r}" length="${body_h}"/></geometry>
+      <material name="cuerpo"/>
+    </visual>
+    <visual>  <!-- marca delantera para ver la orientación -->
+      <origin xyz="${body_r * 0.7} 0 ${body_h - r + 0.012}"/>
+      <geometry><box size="0.04 0.12 0.005"/></geometry>
+      <material name="tapa"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${body_h / 2 - r + 0.01}"/>
+      <geometry><cylinder radius="${body_r}" length="${body_h}"/></geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 ${body_h / 2 - r + 0.01}"/>
+      <mass value="${body_m}"/>
+      <inertia ixx="${body_m * (3 * body_r * body_r + body_h * body_h) / 12}" ixy="0" ixz="0"
+               iyy="${body_m * (3 * body_r * body_r + body_h * body_h) / 12}" iyz="0"
+               izz="${body_m * body_r * body_r / 2}"/>
+    </inertial>
+  </link>
+
+  <!-- ===== ruedas motrices ===== -->
+  <xacro:macro name="rueda" params="lado y">
+    <link name="${lado}_wheel">
+      <visual>
+        <origin rpy="${pi / 2} 0 0"/>
+        <geometry><cylinder radius="${r}" length="${wheel_w}"/></geometry>
+        <material name="rueda"/>
+      </visual>
+      <collision>
+        <origin rpy="${pi / 2} 0 0"/>
+        <geometry><cylinder radius="${r}" length="${wheel_w}"/></geometry>
+      </collision>
+      <inertial>
+        <origin rpy="${pi / 2} 0 0"/>
+        <mass value="${wheel_m}"/>
+        <inertia ixx="${wheel_m * (3 * r * r + wheel_w * wheel_w) / 12}" ixy="0" ixz="0"
+                 iyy="${wheel_m * (3 * r * r + wheel_w * wheel_w) / 12}" iyz="0"
+                 izz="${wheel_m * r * r / 2}"/>
+      </inertial>
+    </link>
+    <!-- giro positivo alrededor de +y = avanzar en +x -->
+    <joint name="${lado}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child link="${lado}_wheel"/>
+      <origin xyz="0 ${y} 0"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+    <gazebo reference="${lado}_wheel">
+      <mu1>1.5</mu1>
+      <mu2>1.5</mu2>
+      <kp>1e6</kp>
+      <kd>100</kd>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:rueda lado="left" y="${L / 2}"/>
+  <xacro:rueda lado="right" y="${-L / 2}"/>
+
+  <!-- ===== apoyos (bolas sin fricción, delante y detrás) ===== -->
+  <xacro:macro name="apoyo" params="nombre x">
+    <link name="${nombre}">
+      <visual>
+        <geometry><sphere radius="${caster_r}"/></geometry>
+        <material name="tapa"/>
+      </visual>
+      <collision>
+        <geometry><sphere radius="${caster_r}"/></geometry>
+      </collision>
+      <inertial>
+        <mass value="0.02"/>
+        <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+      </inertial>
+    </link>
+    <joint name="${nombre}_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${nombre}"/>
+      <origin xyz="${x} 0 ${caster_r - r}"/>   <!-- toca el suelo igual que las ruedas -->
+    </joint>
+    <gazebo reference="${nombre}">
+      <mu1>0.0</mu1>
+      <mu2>0.0</mu2>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:apoyo nombre="caster_front" x="${body_r * 0.75}"/>
+  <xacro:apoyo nombre="caster_back" x="${-body_r * 0.75}"/>
+
+  <!-- ===== ros2_control (tu xacro, con Gazebo como hardware) ===== -->
+  <xacro:roomba_ros2_control use_gazebo="$(arg use_gazebo)"/>
+
+  <!-- ===== plugins de Gazebo ===== -->
+  <gazebo reference="base_link">
+    <!-- el xacro de ros2_control declara imu_sensor cuando use_gazebo -->
+    <sensor name="imu_sensor" type="imu">
+      <always_on>1</always_on>
+      <update_rate>100</update_rate>
+      <topic>imu</topic>
+    </sensor>
+  </gazebo>
+
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(find roomba_odom)/config/controllers.yaml</parameters>
+    </plugin>
+
+    <!-- Pose real (ground truth). Se puentea a ROS como /ground_truth.
+         Marcos propios para que no choquen con odom -> base_link. -->
+    <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
+      <odom_frame>gt_odom</odom_frame>
+      <robot_base_frame>gt_base_link</robot_base_frame>
+      <odom_publish_frequency>100</odom_publish_frequency>
+      <dimensions>2</dimensions>
+    </plugin>
+  </gazebo>
+
+</robot>
